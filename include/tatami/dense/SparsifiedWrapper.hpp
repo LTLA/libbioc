@@ -64,7 +64,7 @@ void populate_indices(const Extractor_& raw, Index_* ibuffer) {
  *   which returns the full extent of the extraction dimension.
  * - For `DimensionSelectionType::BLOCK`, we expect the `Index_ sparsify_block_start() const` and `Index_ sparsify_block_length() const` methods,
  *   which return the start and length of the contiguous block on the extraction dimension, respectively.
- * - For `DimensionSelectionType::INDEX`, we expect the `Index_ sparsify_indices() const` method,
+ * - For `DimensionSelectionType::INDEX`, we expect the `const std::vector<Index_>& sparsify_indices() const` method,
  *   which returns the vector of subset indices on the extraction dimension, respectively.
  */
 template<DimensionSelectionType selection_, typename Value_, typename Index_, class Extractor_>
