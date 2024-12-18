@@ -67,6 +67,16 @@ public:
 
     using Matrix<Value_, Index_>::sparse;
 
+    /**
+     * @cond
+     */
+    const std::shared_ptr<const Matrix<Value_, Index_> >& seed() const {
+        return my_matrix;
+    }
+    /**
+     * @endcond
+     */
+
     /********************
      *** Myopic dense ***
      ********************/
@@ -133,18 +143,26 @@ public:
 };
 
 /**
- * A `make_*` helper function to enable partial template deduction of supplied types during delayed transposition.
+ * A `make_*` helper function for delayed transposition.
+ * This will typically return a `DelayedTranspose` instance wrapping `matrix`.
+ * However, if `matrix` was already a `DelayedTranspose`, then the two delayed transpositions cancel out;
+ * the underlying seed is returned directly, eliminating two unnecessary operations.
  *
  * @tparam Value_ Type of matrix value.
  * @tparam Index_ Type of index value.
  *
  * @param matrix Pointer to a (possibly `const`) `Matrix` instance.
  *
- * @return A pointer to a `DelayedTranspose` instance.
+ * @return A pointer to a `Matrix` representing the transposition of `matrix`.
  */
 template<typename Value_, typename Index_>
 std::shared_ptr<Matrix<Value_, Index_> > make_DelayedTranspose(std::shared_ptr<const Matrix<Value_, Index_> > matrix) {
-    return std::shared_ptr<Matrix<Value_, Index_> >(new DelayedTranspose<Value_, Index_>(std::move(matrix)));
+    auto tptr = dynamic_cast<const DelayedTranspose<Value_, Index_>*>(matrix.get());
+    if (tptr == NULL) {
+        return std::shared_ptr<Matrix<Value_, Index_> >(new DelayedTranspose<Value_, Index_>(std::move(matrix)));
+    } else {
+        return std::const_pointer_cast<Matrix<Value_, Index_> >(tptr->seed()); // TODO: jesus christ, get rid of this.
+    }
 }
 
 /**
@@ -152,7 +170,7 @@ std::shared_ptr<Matrix<Value_, Index_> > make_DelayedTranspose(std::shared_ptr<c
  */
 template<typename Value_, typename Index_>
 std::shared_ptr<Matrix<Value_, Index_> > make_DelayedTranspose(std::shared_ptr<Matrix<Value_, Index_> > matrix) {
-    return std::shared_ptr<Matrix<Value_, Index_> >(new DelayedTranspose<Value_, Index_>(std::move(matrix)));
+    return make_DelayedTranspose(std::shared_ptr<const Matrix<Value_, Index_> >(std::move(matrix)));
 }
 /**
  * @endcond

@@ -76,6 +76,21 @@ TEST_F(TransposeTest, ConstOverload) {
     EXPECT_EQ(dense->ncol(), tdense->nrow());
 }
 
+TEST_F(TransposeTest, Simplified) {
+    auto stacked = tatami::make_DelayedTranspose(tdense);
+    EXPECT_EQ(stacked->nrow(), nrow);
+    EXPECT_EQ(stacked->ncol(), ncol);
+
+    // This should collapse to the seed class.
+    auto ptr = dynamic_cast<tatami::DelayedTranspose<double, int>*>(stacked.get());
+    EXPECT_TRUE(ptr == NULL);
+    auto ref = dynamic_cast<tatami::DelayedTranspose<double, int>*>(tdense.get());
+    EXPECT_TRUE(ref != NULL); // as a control.
+
+    tatami_test::test_simple_row_access(*stacked, *dense);
+    tatami_test::test_simple_column_access(*stacked, *dense);
+}
+
 class TransposeFullTest : 
     public ::testing::TestWithParam<tatami_test::StandardTestAccessOptions>,
     public TransposeUtils {
