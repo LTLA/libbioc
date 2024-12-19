@@ -694,6 +694,21 @@ public:
 
     using Matrix<Value_, Index_>::sparse;
 
+    /**
+     * @cond
+     */
+public:
+    const std::vector<std::shared_ptr<const Matrix<Value_, Index_> > >& seeds() const {
+        return my_matrices;
+    }
+
+    bool by_row() const {
+        return my_by_row;
+    }
+    /**
+     * @endcond
+     */
+
     /**********************************
      ********** Myopic dense **********
      **********************************/
@@ -844,7 +859,14 @@ private:
 };
 
 /**
- * A `make_*` helper function to enable partial template deduction of supplied types.
+ * A `make_*` helper function for delayed combining of `Matrix` instances.
+ * This will typically return a `DelayedBind` instance wrapping the provided `matrices`, with some exceptions:
+ *
+ * - If `matrices` contains only one matrix, it is returned directly, eliminating the need for an extra `DelayedBind` wrapper altogether.
+ * - If any entry of `matrices` is a `DelayedBind` using the same `row`, its component matrices are merged into the current `DelayedBind` operation.
+ *   This eliminates an unnecessary `DelayedBind` layer.
+ *
+ * If these simplifications are undesirable, users should call the `DelayedBind` constructor directly.
  *
  * @tparam Value_ Type of matrix value.
  * @tparam Index_ Type of index value.
@@ -853,11 +875,38 @@ private:
  * @param row Whether to combine matrices by the rows (i.e., the output matrix has number of rows equal to the sum of the number of rows in `matrices`).
  * If false, combining is applied by the columns.
  *
- * @return A pointer to a `DelayedBind` instance.
+ * @return A pointer to a `Matrix` representing the combined `matrices`.
  */
 template<typename Value_, typename Index_>
 std::shared_ptr<Matrix<Value_, Index_> > make_DelayedBind(std::vector<std::shared_ptr<const Matrix<Value_, Index_> > > matrices, bool row) {
-    return std::shared_ptr<Matrix<Value_, Index_> >(new DelayedBind<Value_, Index_>(std::move(matrices), row));
+    if (matrices.size() == 1) {
+        return std::const_pointer_cast<Matrix<Value_, Index_> >(matrices.front());
+    }
+
+    bool to_simplify = false;
+    for (const auto& m : matrices) {
+        auto cptr = dynamic_cast<const DelayedBind<Value_, Index_>*>(m.get());
+        if (cptr != NULL && cptr->by_row() == row) {
+            to_simplify = true;
+            break;
+        }
+    }
+    if (!to_simplify) {
+        return std::shared_ptr<Matrix<Value_, Index_> >(new DelayedBind<Value_, Index_>(std::move(matrices), row));
+    }
+
+    std::vector<std::shared_ptr<const Matrix<Value_, Index_> > > new_matrices;
+    new_matrices.reserve(matrices.size());
+    for (auto& m : matrices) {
+        auto cptr = dynamic_cast<const DelayedBind<Value_, Index_>*>(m.get());
+        if (cptr != NULL && cptr->by_row() == row) {
+            const auto& seeds = cptr->seeds();
+            new_matrices.insert(new_matrices.end(), seeds.begin(), seeds.end());
+        } else {
+            new_matrices.push_back(std::move(m));
+        }
+    }
+    return std::shared_ptr<Matrix<Value_, Index_> >(new DelayedBind<Value_, Index_>(std::move(new_matrices), row));
 }
 
 /**
@@ -865,7 +914,7 @@ std::shared_ptr<Matrix<Value_, Index_> > make_DelayedBind(std::vector<std::share
  */
 template<typename Value_, typename Index_>
 std::shared_ptr<Matrix<Value_, Index_> > make_DelayedBind(std::vector<std::shared_ptr<Matrix<Value_, Index_> > > matrices, bool row) {
-    return std::shared_ptr<Matrix<Value_, Index_> >(new DelayedBind<Value_, Index_>(std::move(matrices), row));
+    return make_DelayedBind(std::vector<std::shared_ptr<const Matrix<Value_, Index_> > >(matrices.begin(), matrices.end()), row);
 }
 /**
  * @endcond
